@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { AuthService, HttpAuthService } from '@backstage/backend-plugin-api';
 import { ClusterDetails, KubernetesClustersSupplier } from '../types/types';
 import { CATALOG_FILTER_EXISTS, CatalogApi } from '@backstage/catalog-client';
 import {
@@ -34,13 +35,25 @@ function isObject(obj: unknown): obj is JsonObject {
 
 export class CatalogClusterLocator implements KubernetesClustersSupplier {
   private catalogClient: CatalogApi;
+  private auth: AuthService;
+  private httpAuth: HttpAuthService;
 
-  constructor(catalogClient: CatalogApi) {
+  constructor(
+    catalogClient: CatalogApi,
+    auth: AuthService,
+    httpAuth: HttpAuthService,
+  ) {
     this.catalogClient = catalogClient;
+    this.auth = auth;
+    this.httpAuth = httpAuth;
   }
 
-  static fromConfig(catalogApi: CatalogApi): CatalogClusterLocator {
-    return new CatalogClusterLocator(catalogApi);
+  static fromConfig(
+    catalogApi: CatalogApi,
+    auth: AuthService,
+    httpAuth: HttpAuthService,
+  ): CatalogClusterLocator {
+    return new CatalogClusterLocator(catalogApi, auth, httpAuth);
   }
 
   async getClusters(): Promise<ClusterDetails[]> {
@@ -56,9 +69,17 @@ export class CatalogClusterLocator implements KubernetesClustersSupplier {
       [authProviderKey]: CATALOG_FILTER_EXISTS,
     };
 
-    const clusters = await this.catalogClient.getEntities({
-      filter: [filter],
+    const { token } = await this.auth.getPluginRequestToken({
+      onBehalfOf: await this.auth.getOwnServiceCredentials(),
+      targetPluginId: 'catalog',
     });
+
+    const clusters = await this.catalogClient.getEntities(
+      {
+        filter: [filter],
+      },
+      { token },
+    );
     return clusters.items.map(entity => {
       const annotations = entity.metadata.annotations!;
       const clusterDetails: ClusterDetails = {

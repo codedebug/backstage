@@ -257,12 +257,15 @@ export class KubernetesBuilder {
     refreshInterval: Duration,
   ): KubernetesClustersSupplier {
     const config = this.env.config;
+    const { auth, httpAuth } = createLegacyAuthAdapters(this.env);
     this.clusterSupplier = getCombinedClusterSupplier(
       config,
       this.env.catalogApi,
       new DispatchStrategy({ authStrategyMap: this.getAuthStrategyMap() }),
       this.env.logger,
       refreshInterval,
+      auth,
+      httpAuth,
     );
 
     return this.clusterSupplier;
